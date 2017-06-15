@@ -6,6 +6,27 @@
 #ifdef USE_APP_CONFIG
 #include "app_config.h"
 #endif
+
+// <h> Application 
+
+//==========================================================
+// <o> I2S_SDIN_PIN - Pin number  <0-31> 
+
+
+#ifndef I2S_SDIN_PIN
+#define I2S_SDIN_PIN 26
+#endif
+
+// <o> I2S_SDOUT_PIN - Pin number  <0-31> 
+
+
+#ifndef I2S_SDOUT_PIN
+#define I2S_SDOUT_PIN 27
+#endif
+
+// </h> 
+//==========================================================
+
 // <h> nRF_BLE 
 
 //==========================================================
@@ -732,7 +753,7 @@
 // <e> I2S_ENABLED - nrf_drv_i2s - I2S peripheral driver
 //==========================================================
 #ifndef I2S_ENABLED
-#define I2S_ENABLED 0
+#define I2S_ENABLED 1
 #endif
 #if  I2S_ENABLED
 // <o> I2S_CONFIG_SCK_PIN - SCK pin  <0-31> 
@@ -2135,7 +2156,7 @@
 // <e> SPI_ENABLED - nrf_drv_spi - SPI/SPIM peripheral driver
 //==========================================================
 #ifndef SPI_ENABLED
-#define SPI_ENABLED 0
+#define SPI_ENABLED 1
 #endif
 #if  SPI_ENABLED
 // <o> SPI_DEFAULT_CONFIG_IRQ_PRIORITY  - Interrupt priority
@@ -2158,7 +2179,7 @@
 // <e> SPI0_ENABLED - Enable SPI0 instance
 //==========================================================
 #ifndef SPI0_ENABLED
-#define SPI0_ENABLED 0
+#define SPI0_ENABLED 1
 #endif
 #if  SPI0_ENABLED
 // <q> SPI0_USE_EASY_DMA  - Use EasyDMA
@@ -3076,6 +3097,53 @@
 #define APP_TWI_ENABLED 0
 #endif
 
+// <e> APP_SDCARD_ENABLED - app_sdcard - SD/MMC card support using SPI
+//==========================================================
+#ifndef APP_SDCARD_ENABLED
+#define APP_SDCARD_ENABLED 1
+#endif
+#if  APP_SDCARD_ENABLED
+// <o> APP_SDCARD_SPI_INSTANCE  - SPI instance used
+ 
+// <0=> 0 
+// <1=> 1 
+// <2=> 2 
+
+#ifndef APP_SDCARD_SPI_INSTANCE
+#define APP_SDCARD_SPI_INSTANCE 0
+#endif
+
+// <o> APP_SDCARD_FREQ_INIT  - SPI frequency
+ 
+// <33554432=> 125 kHz 
+// <67108864=> 250 kHz 
+// <134217728=> 500 kHz 
+// <268435456=> 1 MHz 
+// <536870912=> 2 MHz 
+// <1073741824=> 4 MHz 
+// <2147483648=> 8 MHz 
+
+#ifndef APP_SDCARD_FREQ_INIT
+#define APP_SDCARD_FREQ_INIT 67108864
+#endif
+
+// <o> APP_SDCARD_FREQ_DATA  - SPI frequency
+ 
+// <33554432=> 125 kHz 
+// <67108864=> 250 kHz 
+// <134217728=> 500 kHz 
+// <268435456=> 1 MHz 
+// <536870912=> 2 MHz 
+// <1073741824=> 4 MHz 
+// <2147483648=> 8 MHz 
+
+#ifndef APP_SDCARD_FREQ_DATA
+#define APP_SDCARD_FREQ_DATA 1073741824
+#endif
+
+#endif //APP_SDCARD_ENABLED
+// </e>
+
 // <e> APP_UART_ENABLED - app_uart - UART driver
 //==========================================================
 #ifndef APP_UART_ENABLED
@@ -3562,7 +3630,7 @@
 // <e> NRF_LOG_ENABLED - nrf_log - Logging
 //==========================================================
 #ifndef NRF_LOG_ENABLED
-#define NRF_LOG_ENABLED 0
+#define NRF_LOG_ENABLED 1
 #endif
 #if  NRF_LOG_ENABLED
 // <e> NRF_LOG_USES_COLORS - If enabled then ANSI escape code for colors is prefixed to every string
@@ -3684,7 +3752,7 @@
 // <e> NRF_LOG_BACKEND_SERIAL_USES_UART - If enabled data is printed over UART
 //==========================================================
 #ifndef NRF_LOG_BACKEND_SERIAL_USES_UART
-#define NRF_LOG_BACKEND_SERIAL_USES_UART 1
+#define NRF_LOG_BACKEND_SERIAL_USES_UART 0
 #endif
 #if  NRF_LOG_BACKEND_SERIAL_USES_UART
 // <o> NRF_LOG_BACKEND_SERIAL_UART_BAUDRATE  - Default Baudrate
@@ -3753,7 +3821,7 @@
 // <e> NRF_LOG_BACKEND_SERIAL_USES_RTT - If enabled data is printed using RTT
 //==========================================================
 #ifndef NRF_LOG_BACKEND_SERIAL_USES_RTT
-#define NRF_LOG_BACKEND_SERIAL_USES_RTT 0
+#define NRF_LOG_BACKEND_SERIAL_USES_RTT 1
 #endif
 #if  NRF_LOG_BACKEND_SERIAL_USES_RTT
 // <o> NRF_LOG_BACKEND_RTT_OUTPUT_BUFFER_SIZE - RTT output buffer size. 

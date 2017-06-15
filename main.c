@@ -38,6 +38,12 @@
 #include "bsp.h"
 #include "bsp_btn_ble.h"
 
+#define NRF_LOG_MODULE_NAME "APP"
+#include "nrf_log.h"
+#include "nrf_log_ctrl.h"
+
+#include "sd_i2s.h"
+
 #define IS_SRVC_CHANGED_CHARACT_PRESENT 1                                           /**< Include the service_changed characteristic. If not enabled, the server's database cannot be changed for the lifetime of the device. */
 
 #if (NRF_SD_BLE_API_VERSION == 3)
@@ -527,6 +533,9 @@ int main(void)
     uint32_t err_code;
     bool erase_bonds;
 	
+	APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
+    NRF_LOG_INFO("\r\nBig Mouth Billy Bass\r\n\r\n");
+	
     // Initialize.
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
 
@@ -536,10 +545,10 @@ int main(void)
     services_init();
     advertising_init();
     conn_params_init();
-
-	//ble_nus_string_set(&m_nus, (uint8_t *)"This is a long sentence", 23);
-	//ble_nus_string_set(&m_nus, (uint8_t *)"Test", 4);
-	//ble_nus_string_send(&m_nus, (uint8_t *)"Test", 4);
+	
+	fatfs_init();
+	i2s_init();
+	play_music();
 	
     err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
