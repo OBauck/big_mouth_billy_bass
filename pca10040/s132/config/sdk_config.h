@@ -3024,7 +3024,7 @@
  
 
 #ifndef APP_FIFO_ENABLED
-#define APP_FIFO_ENABLED 1
+#define APP_FIFO_ENABLED 0
 #endif
 
 // <q> APP_GPIOTE_ENABLED  - app_gpiote - GPIOTE events dispatcher
@@ -3147,7 +3147,7 @@
 // <e> APP_UART_ENABLED - app_uart - UART driver
 //==========================================================
 #ifndef APP_UART_ENABLED
-#define APP_UART_ENABLED 1
+#define APP_UART_ENABLED 0
 #endif
 #if  APP_UART_ENABLED
 // <o> APP_UART_DRIVER_INSTANCE  - UART instance used
@@ -3707,7 +3707,7 @@
 // <i> Log data is buffered and can be processed in idle.
 //==========================================================
 #ifndef NRF_LOG_DEFERRED
-#define NRF_LOG_DEFERRED 1
+#define NRF_LOG_DEFERRED 0
 #endif
 #if  NRF_LOG_DEFERRED
 // <o> NRF_LOG_DEFERRED_BUFSIZE - Size of the buffer for logs in words. 

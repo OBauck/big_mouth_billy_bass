@@ -4,6 +4,7 @@
 #include "nrf_block_dev_sdc.h"
 #include "nrf_drv_i2s.h"
 #include "nrf_delay.h"
+#include "sd_i2s.h"
 
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
@@ -40,6 +41,8 @@ static uint32_t m_i2s_buffer_tx[I2S_BUFFER_SIZE];
 static FATFS fs;
 static FIL file;
 
+static uint32_t count;
+
 void fatfs_init(void)
 {
     FRESULT ff_result;
@@ -75,9 +78,61 @@ void fatfs_init(void)
         NRF_LOG_INFO("Mount failed.\r\n");
         return;
     }
-	
-    //(void) f_close(&file);
     return;
+}
+
+void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *indexes, uint8_t indexes_len)
+{
+	FRESULT ff_result;
+	static DIR dir;
+    static FILINFO fno;
+	static uint8_t index_count = 0;
+	static uint16_t str_len;
+	
+    ff_result = f_opendir(&dir, "/music");
+    if (ff_result)
+    {
+        NRF_LOG_INFO("Directory listing failed!\r\n");
+        return;
+    }
+    
+    do
+    {
+        ff_result = f_readdir(&dir, &fno);
+        if (ff_result != FR_OK)
+        {
+            NRF_LOG_INFO("Directory read failed.");
+            return;
+        }
+        
+        if (fno.fname[0])
+        {
+            if (!(fno.fattrib & AM_DIR))
+            {
+				str_len = strlen(dir_list) + strlen(fno.fname) + 1;
+				if(str_len >= dir_list_len)
+				{
+					NRF_LOG_INFO("No more space in directory list string\r\n");
+					return;
+				}
+				strcat(dir_list, fno.fname);
+				strcat(dir_list, "\n");
+				
+				if(index_count >= indexes_len)
+				{
+					NRF_LOG_INFO("No more space in indexes array\r\n");
+					return;
+				}
+				
+				indexes[index_count] = str_len;
+				index_count++;
+				
+                //NRF_LOG_RAW_INFO("%s\r\n", (uint32_t)fno.fname);
+            }
+        }
+    }
+    while (fno.fname[0]);
+	dir_list[strlen(dir_list)-1] = '\0';
 }
 
 bool fatfs_read()
@@ -114,7 +169,6 @@ static void data_handler(uint32_t const * p_data_received,
                          uint32_t       * p_data_to_send,
                          uint16_t         number_of_words)
 {
-	static uint32_t count;
 	// Non-NULL value in 'p_data_to_send' indicates that the driver needs
     // a new portion of data to send.
     if (p_data_to_send != NULL)
@@ -150,53 +204,80 @@ void i2s_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-void play_music(void)
+void play_song(char *song)
 {
-	uint8_t header[44];
-	FRESULT ff_result;
-	uint32_t err_code, bytes_read;
-	
-    ff_result = f_open(&file, "music/test16.wav", FA_READ | FA_OPEN_EXISTING);
-	
-    if (ff_result != FR_OK)
-    {
-        NRF_LOG_INFO("Unable to open file.\r\n");
-        return;
-    }
-
-	//read header (44 bytes)
-	ff_result = f_read(&file, header, sizeof(header), (UINT*)&bytes_read);
-	
-	if((bytes_read < sizeof(header)) || (ff_result != FR_OK))
+	if(!playing)
 	{
-		NRF_LOG_INFO("Failed to read file\n");
-		return;
-	}
+		uint8_t header[44];
+		FRESULT ff_result;
+		uint32_t err_code, bytes_read;
+		char file_name[50] = "music/";
+		
+		strcat(file_name, song);
+		//strcat(file_name, ".wav");
+		
+		ff_result = f_open(&file, file_name, FA_READ | FA_OPEN_EXISTING);
+		
+		if (ff_result != FR_OK)
+		{
+			NRF_LOG_INFO("Unable to open file %s.\r\n", (uint32_t)file_name);
+			return;
+		}
 
-	uint16_t channels = header[22] + (header[23]<<8);
-	uint32_t sample_rate = header[24] + (header[25]<<8) + (header[26]<<16) + (header[27]<<24);
-	uint16_t bits_per_sample = header[34] + (header[35]<<8);
-	
-	NRF_LOG_INFO("channels: %d\n", channels);
-	NRF_LOG_INFO("sample rate: %d\n", sample_rate);
-	NRF_LOG_INFO("bits per sample: %d\n", bits_per_sample);
-	
-	prepare_i2s_data(m_i2s_buffer_tx, I2S_BUFFER_SIZE);
-	fatfs_data_ready = true;
-	
-	err_code = nrf_drv_i2s_start(m_i2s_buffer_rx, m_i2s_buffer_tx,
-            I2S_BUFFER_SIZE, 0);
-	APP_ERROR_CHECK(err_code);
-	
-	playing = true;
-	
-	while (playing)
+		//read header (44 bytes)
+		ff_result = f_read(&file, header, sizeof(header), (UINT*)&bytes_read);
+		
+		if((bytes_read < sizeof(header)) || (ff_result != FR_OK))
+		{
+			NRF_LOG_INFO("Failed to read file\n");
+			return;
+		}
+
+		uint16_t channels = header[22] + (header[23]<<8);
+		uint32_t sample_rate = header[24] + (header[25]<<8) + (header[26]<<16) + (header[27]<<24);
+		uint16_t bits_per_sample = header[34] + (header[35]<<8);
+		
+		NRF_LOG_INFO("channels: %d\n", channels);
+		NRF_LOG_INFO("sample rate: %d\n", sample_rate);
+		NRF_LOG_INFO("bits per sample: %d\n", bits_per_sample);
+		
+		prepare_i2s_data(m_i2s_buffer_tx, I2S_BUFFER_SIZE);
+		fatfs_data_ready = true;
+		
+		err_code = nrf_drv_i2s_start(m_i2s_buffer_rx, m_i2s_buffer_tx,
+				I2S_BUFFER_SIZE, 0);
+		APP_ERROR_CHECK(err_code);
+		
+		playing = true;
+	}
+	else
+	{
+		stop_song();
+	}
+}
+
+void stop_song(void)
+{
+	if(playing)
+	{
+		nrf_drv_i2s_stop();
+		playing = false;
+		NRF_LOG_INFO("Playing stopped by user\r\n");
+		
+		//close file
+		(void) f_close(&file);
+		count = 0;
+	}
+}
+
+void stream_song(void)
+{
+	if(playing)
     {
 		if(i2s_data_sent)
 		{
 			fatfs_data_ready = fatfs_read();
 			i2s_data_sent = false;
 		}
-        __WFE();
     }
 }

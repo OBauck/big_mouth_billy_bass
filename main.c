@@ -82,6 +82,12 @@ static uint16_t                         m_conn_handle = BLE_CONN_HANDLE_INVALID;
 
 static ble_uuid_t                       m_adv_uuids[] = {{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};  /**< Universally unique service identifier. */
 
+#define DIRECTORY_LIST_LEN 256
+static char directory_list[DIRECTORY_LIST_LEN] = "";
+#define INDEXES_LEN 32
+static uint16_t indexes[INDEXES_LEN];
+
+static uint8_t play_song_nr = 0;
 
 /**@brief Function for assert macro callback.
  *
@@ -145,9 +151,11 @@ static void nus_data_handler(ble_nus_t * p_nus, uint8_t p_data)
     switch(p_data)
 	{
 		case 0:
+			play_song_nr = 1;
 			nrf_gpio_pin_toggle(17);
 			break;
 		case 1:
+			play_song_nr = 2;
 			nrf_gpio_pin_toggle(18);
 			break;
 		case 2:
@@ -163,7 +171,7 @@ static void nus_data_handler(ble_nus_t * p_nus, uint8_t p_data)
 
 /**@brief Function for initializing services that will be used by the application.
  */
-static void services_init(void)
+static void services_init(char *str)
 {
     uint32_t       err_code;
     ble_nus_init_t nus_init;
@@ -171,8 +179,6 @@ static void services_init(void)
     memset(&nus_init, 0, sizeof(nus_init));
 
     nus_init.data_handler = nus_data_handler;
-
-	char str[] = "button1\nbutton2\nbutton3\nbutton4";
 	
     err_code = ble_nus_init(&m_nus, &nus_init, (uint8_t *)str, strlen(str));
     APP_ERROR_CHECK(err_code);
@@ -532,23 +538,37 @@ int main(void)
 {
     uint32_t err_code;
     bool erase_bonds;
+	char song[30];
 	
 	APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
-    NRF_LOG_INFO("\r\nBig Mouth Billy Bass\r\n\r\n");
+    NRF_LOG_INFO("Big Mouth Billy Bass\r\n\r\n");
 	
     // Initialize.
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
 
+	fatfs_init();
+	NRF_LOG_INFO("Listing directory: /music\r\n");
+	fatfs_list_directory(directory_list, DIRECTORY_LIST_LEN, &indexes[1], INDEXES_LEN - 1);
+	NRF_LOG_RAW_INFO("%s\r\n", (uint32_t)directory_list);
+	
+	/*
+	for(uint8_t i = 0; i < INDEXES_LEN; i++)
+	{
+		NRF_LOG_RAW_INFO("%d\r\n", indexes[i]);
+	}
+	*/
+	
     buttons_leds_init(&erase_bonds);
     ble_stack_init();
     gap_params_init();
-    services_init();
+	services_init(directory_list);
+    //services_init("button1\nbutton2\nbutton3\nbutton4");
     advertising_init();
     conn_params_init();
 	
-	fatfs_init();
 	i2s_init();
-	play_music();
+	//play_song_nr = 1;
+	//play_song("surfbrett.wav");
 	
     err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
@@ -557,6 +577,16 @@ int main(void)
     for (;;)
     {
         power_manage();
+		if(play_song_nr != 0)
+		{
+			uint8_t song_len = indexes[play_song_nr] - indexes[play_song_nr-1] - 1;
+			strncpy(song, &directory_list[indexes[play_song_nr-1]], song_len);
+			song[song_len] = '\0';
+			play_song(song);
+			NRF_LOG_INFO("start playing song: %s\r\n", (uint32_t)song);
+			play_song_nr = 0;
+		}
+		stream_song();
     }
 }
 
