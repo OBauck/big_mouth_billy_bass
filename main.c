@@ -58,14 +58,17 @@
 #define DEVICE_NAME                     "Billy"                               /**< Name of device. Will be included in the advertising data. */
 #define NUS_SERVICE_UUID_TYPE           BLE_UUID_TYPE_VENDOR_BEGIN                  /**< UUID type for the Nordic UART Service (vendor specific). */
 
-#define APP_ADV_INTERVAL                64                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
-#define APP_ADV_TIMEOUT_IN_SECONDS      180                                         /**< The advertising timeout (in units of seconds). */
+#define APP_ADV_FAST_INTERVAL                64                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 40 ms). */
+#define APP_ADV_FAST_TIMEOUT_IN_SECONDS      180                                         /**< The advertising timeout (in units of seconds). */
+
+#define APP_ADV_SLOW_INTERVAL                160                                          /**< The advertising interval (in units of 0.625 ms. This value corresponds to 100 ms). */
+#define APP_ADV_SLOW_TIMEOUT_IN_SECONDS      0                                         /**< The advertising timeout (in units of seconds). */
 
 #define APP_TIMER_PRESCALER             0                                           /**< Value of the RTC1 PRESCALER register. */
-#define APP_TIMER_OP_QUEUE_SIZE         4                                           /**< Size of timer operation queues. */
+#define APP_TIMER_OP_QUEUE_SIZE         8                                           /**< Size of timer operation queues. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(75, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(10, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(1000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -155,12 +158,37 @@ static void gap_params_init(void)
  * @param[in] length   Length of the data.
  */
 /**@snippet [Handling the data received over BLE] */
-static void nus_data_handler(ble_nus_t * p_nus, uint8_t p_data)
+static void nus_data_handler(ble_nus_t * p_nus, uint8_t p_data, bool song)
 {
-	NRF_LOG_INFO("Received command: %d\r\n", p_data);
-    if(p_data <= nr_of_songs)
+	if(song)
 	{
-		play_song_nr = p_data + 1;
+		NRF_LOG_INFO("Received song command: %d\r\n", p_data);
+		if(p_data <= nr_of_songs)
+		{
+			play_song_nr = p_data + 1;
+		}
+	}
+	else
+	{
+		NRF_LOG_INFO("Received motion command: %d\r\n", p_data);
+		switch(p_data)
+		{
+			case 0:
+				billy_head_toggle();
+				break;
+			case 2:
+				billy_tail_out();
+				break;
+			case 3:
+				billy_tail_in();
+				break;
+			case 4:
+				billy_mouth_open();
+				break;
+			case 5:
+				billy_mouth_close();
+				break;
+		}
 	}
 }
 /**@snippet [Handling the data received over BLE] */
@@ -492,8 +520,12 @@ static void advertising_init(void)
 
     memset(&options, 0, sizeof(options));
     options.ble_adv_fast_enabled  = true;
-    options.ble_adv_fast_interval = APP_ADV_INTERVAL;
-    options.ble_adv_fast_timeout  = APP_ADV_TIMEOUT_IN_SECONDS;
+    options.ble_adv_fast_interval = APP_ADV_FAST_INTERVAL;
+    options.ble_adv_fast_timeout  = APP_ADV_FAST_TIMEOUT_IN_SECONDS;
+	
+	options.ble_adv_slow_enabled  = true;
+    options.ble_adv_slow_interval = APP_ADV_SLOW_INTERVAL;
+    options.ble_adv_slow_timeout  = APP_ADV_SLOW_TIMEOUT_IN_SECONDS;
 
     err_code = ble_advertising_init(&advdata, &scanrsp, &options, on_adv_evt, NULL);
     APP_ERROR_CHECK(err_code);
@@ -555,14 +587,7 @@ int main(void)
 	}
 	*/
 	
-	nrf_gpio_cfg_output(BILLY_HEAD_PIN);
-	nrf_gpio_pin_clear(BILLY_HEAD_PIN);
-	
-	nrf_gpio_cfg_output(BILLY_TAIL_PIN);
-	nrf_gpio_pin_clear(BILLY_TAIL_PIN);
-	
-	nrf_gpio_cfg_output(BILLY_MOUTH_PIN);
-	nrf_gpio_pin_clear(BILLY_MOUTH_PIN);
+	billy_motion_init();
 	
     buttons_leds_init(&erase_bonds);
     ble_stack_init();

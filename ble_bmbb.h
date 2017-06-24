@@ -46,9 +46,9 @@ extern "C" {
 
 /* Forward declaration of the ble_nus_t type. */
 typedef struct ble_nus_s ble_nus_t;
-
+	
 /**@brief Nordic UART Service event handler type. */
-typedef void (*ble_bmbb_data_handler_t) (ble_nus_t * p_nus, uint8_t p_data);
+typedef void (*ble_bmbb_data_handler_t) (ble_nus_t * p_nus, uint8_t data, bool song);
 
 /**@brief Nordic UART Service initialization structure.
  *
@@ -69,7 +69,8 @@ struct ble_nus_s
 {
     uint8_t                  uuid_type;               /**< UUID type for Nordic UART Service Base UUID. */
     uint16_t                 service_handle;          /**< Handle of Nordic UART Service (as provided by the SoftDevice). */
-    ble_gatts_char_handles_t tx_handles;              /**< Handles related to the TX characteristic (as provided by the SoftDevice). */
+    ble_gatts_char_handles_t tx_song_handles;         /**< Handles related to the TX characteristic (as provided by the SoftDevice). */
+	ble_gatts_char_handles_t tx_motion_handles;         /**< Handles related to the TX characteristic (as provided by the SoftDevice). */
     ble_gatts_char_handles_t rx_handles;              /**< Handles related to the RX characteristic (as provided by the SoftDevice). */
     uint16_t                 conn_handle;             /**< Handle of the current connection (as provided by the SoftDevice). BLE_CONN_HANDLE_INVALID if not in a connection. */
     bool                     is_notification_enabled; /**< Variable to indicate if the peer has enabled notification of the RX characteristic.*/

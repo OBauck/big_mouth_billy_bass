@@ -10,4 +10,11 @@ bool play_song(char *song);
 void stream_song(void);
 void stop_song(void);
 
+void billy_motion_init(void);
+void billy_head_toggle(void);
+void billy_tail_out(void);
+void billy_tail_in(void);
+void billy_mouth_open(void);
+void billy_mouth_close(void);
+
 #endif //SD_I2S_H

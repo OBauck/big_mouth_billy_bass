@@ -13,8 +13,9 @@
 #include "ble_bmbb.h"
 #include "ble_srv_common.h"
 
-#define BLE_UUID_BMBB_TX_CHARACTERISTIC 0x0002                      /**< The UUID of the TX Characteristic. */
+#define BLE_UUID_BMBB_TX_SONG_CHARACTERISTIC 0x0002                      /**< The UUID of the TX Characteristic. */
 #define BLE_UUID_BMBB_RX_CHARACTERISTIC 0x0003                      /**< The UUID of the RX Characteristic. */
+#define BLE_UUID_BMBB_TX_MOTION_CHARACTERISTIC 0x0004                      /**< The UUID of the TX Characteristic. */
 
 #define BMBB_BASE_UUID                  {{0xbf, 0x31, 0x5a, 0x0d, 0xb5, 0xd6, 0xa1, 0x8c, 0xed, 0x47, 0xce, 0xdf, 0x00, 0x00, 0x24, 0x82}} /**< Used vendor specific UUID. */
 
@@ -50,12 +51,20 @@ static void on_write(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
 {
     ble_gatts_evt_write_t * p_evt_write = &p_ble_evt->evt.gatts_evt.params.write;
 	if (
-             (p_evt_write->handle == p_nus->tx_handles.value_handle)
+             (p_evt_write->handle == p_nus->tx_song_handles.value_handle)
              &&
              (p_nus->data_handler != NULL)
             )
     {
-        p_nus->data_handler(p_nus, p_evt_write->data[0]);
+        p_nus->data_handler(p_nus, p_evt_write->data[0], true);
+    }
+	else if (
+             (p_evt_write->handle == p_nus->tx_motion_handles.value_handle)
+             &&
+             (p_nus->data_handler != NULL)
+            )
+    {
+        p_nus->data_handler(p_nus, p_evt_write->data[0], false);
     }
     else
     {
@@ -125,7 +134,7 @@ static uint32_t rx_char_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init
     /**@snippet [Adding proprietary characteristic to S110 SoftDevice] */
 }
 
-uint32_t control_point_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
+uint32_t control_point_song_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
 {
 	ble_gatts_char_md_t char_md;
     ble_gatts_attr_t    attr_char_value;
@@ -143,7 +152,7 @@ uint32_t control_point_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
     char_md.p_sccd_md         = NULL;
 
     ble_uuid.type = p_nus->uuid_type;
-    ble_uuid.uuid = BLE_UUID_BMBB_TX_CHARACTERISTIC;
+    ble_uuid.uuid = BLE_UUID_BMBB_TX_SONG_CHARACTERISTIC;
 
     memset(&attr_md, 0, sizeof(attr_md));
 
@@ -166,7 +175,51 @@ uint32_t control_point_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
     return sd_ble_gatts_characteristic_add(p_nus->service_handle,
                                            &char_md,
                                            &attr_char_value,
-                                           &p_nus->tx_handles);
+                                           &p_nus->tx_song_handles);
+}
+
+uint32_t control_point_motion_add(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init)
+{
+	ble_gatts_char_md_t char_md;
+    ble_gatts_attr_t    attr_char_value;
+    ble_uuid_t          ble_uuid;
+    ble_gatts_attr_md_t attr_md;
+
+    memset(&char_md, 0, sizeof(char_md));
+
+    char_md.char_props.read   = 1;
+    char_md.char_props.write  = 1;
+    char_md.p_char_user_desc  = NULL;
+    char_md.p_char_pf         = NULL;
+    char_md.p_user_desc_md    = NULL;
+    char_md.p_cccd_md         = NULL;
+    char_md.p_sccd_md         = NULL;
+
+    ble_uuid.type = p_nus->uuid_type;
+    ble_uuid.uuid = BLE_UUID_BMBB_TX_MOTION_CHARACTERISTIC;
+
+    memset(&attr_md, 0, sizeof(attr_md));
+
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
+    attr_md.vloc       = BLE_GATTS_VLOC_STACK;
+    attr_md.rd_auth    = 0;
+    attr_md.wr_auth    = 0;
+    attr_md.vlen       = 0;
+
+    memset(&attr_char_value, 0, sizeof(attr_char_value));
+
+    attr_char_value.p_uuid       = &ble_uuid;
+    attr_char_value.p_attr_md    = &attr_md;
+    attr_char_value.init_len     = sizeof(uint8_t);
+    attr_char_value.init_offs    = 0;
+    attr_char_value.max_len      = sizeof(uint8_t);
+    attr_char_value.p_value      = NULL;
+
+    return sd_ble_gatts_characteristic_add(p_nus->service_handle,
+                                           &char_md,
+                                           &attr_char_value,
+                                           &p_nus->tx_motion_handles);
 }
 
 void ble_nus_on_ble_evt(ble_nus_t * p_nus, ble_evt_t * p_ble_evt)
@@ -230,7 +283,10 @@ uint32_t ble_nus_init(ble_nus_t * p_nus, const ble_nus_init_t * p_nus_init, uint
     err_code = rx_char_add(p_nus, p_nus_init, init_val, init_val_size);
     VERIFY_SUCCESS(err_code);
 	
-	err_code = control_point_add(p_nus, p_nus_init);
+	err_code = control_point_song_add(p_nus, p_nus_init);
+	VERIFY_SUCCESS(err_code);
+
+	err_code = control_point_motion_add(p_nus, p_nus_init);
 	VERIFY_SUCCESS(err_code);
 
     return NRF_SUCCESS;

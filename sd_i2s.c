@@ -323,3 +323,40 @@ void stream_song(void)
 		count = 0;
 	}
 }
+
+void billy_motion_init(void)
+{
+	nrf_gpio_cfg_output(BILLY_HEAD_PIN);
+	nrf_gpio_pin_clear(BILLY_HEAD_PIN);
+	
+	nrf_gpio_cfg_output(BILLY_TAIL_PIN);
+	nrf_gpio_pin_clear(BILLY_TAIL_PIN);
+	
+	nrf_gpio_cfg_output(BILLY_MOUTH_PIN);
+	nrf_gpio_pin_clear(BILLY_MOUTH_PIN);
+}
+
+void billy_head_toggle(void)
+{
+	nrf_gpio_pin_toggle(BILLY_HEAD_PIN);
+}
+
+void billy_tail_out(void)
+{
+	nrf_gpio_pin_set(BILLY_TAIL_PIN);
+}
+
+void billy_tail_in(void)
+{
+	nrf_gpio_pin_clear(BILLY_TAIL_PIN);
+}
+
+void billy_mouth_open(void)
+{
+	nrf_gpio_pin_set(BILLY_MOUTH_PIN);
+}
+
+void billy_mouth_close(void)
+{
+	nrf_gpio_pin_clear(BILLY_MOUTH_PIN);
+}
