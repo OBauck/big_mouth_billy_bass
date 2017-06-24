@@ -67,7 +67,7 @@
 #define MIN_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
 #define MAX_CONN_INTERVAL               MSEC_TO_UNITS(75, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
-#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
+#define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(1000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000, APP_TIMER_PRESCALER)  /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
 #define NEXT_CONN_PARAMS_UPDATE_DELAY   APP_TIMER_TICKS(30000, APP_TIMER_PRESCALER) /**< Time between each call to sd_ble_gap_conn_param_update after the first call (30 seconds). */
 #define MAX_CONN_PARAMS_UPDATE_COUNT    3                                           /**< Number of attempts before giving up the connection parameter negotiation. */
@@ -88,6 +88,15 @@ static char directory_list[DIRECTORY_LIST_LEN] = "";
 static uint16_t indexes[INDEXES_LEN];
 
 static uint8_t play_song_nr = 0;
+static uint8_t nr_of_songs = 0;
+
+#ifdef BOARD_PCA10040
+
+#define BILLY_HEAD_PIN	13
+#define BILLY_MOUTH_PIN	11
+#define BILLY_TAIL_PIN	12
+
+#endif
 
 /**@brief Function for assert macro callback.
  *
@@ -148,22 +157,10 @@ static void gap_params_init(void)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_t * p_nus, uint8_t p_data)
 {
-    switch(p_data)
+	NRF_LOG_INFO("Received command: %d\r\n", p_data);
+    if(p_data <= nr_of_songs)
 	{
-		case 0:
-			play_song_nr = 1;
-			nrf_gpio_pin_toggle(17);
-			break;
-		case 1:
-			play_song_nr = 2;
-			nrf_gpio_pin_toggle(18);
-			break;
-		case 2:
-			nrf_gpio_pin_toggle(19);
-			break;
-		case 3:
-			nrf_gpio_pin_toggle(20);
-			break;
+		play_song_nr = p_data + 1;
 	}
 }
 /**@snippet [Handling the data received over BLE] */
@@ -548,7 +545,7 @@ int main(void)
 
 	fatfs_init();
 	NRF_LOG_INFO("Listing directory: /music\r\n");
-	fatfs_list_directory(directory_list, DIRECTORY_LIST_LEN, &indexes[1], INDEXES_LEN - 1);
+	nr_of_songs = fatfs_list_directory(directory_list, DIRECTORY_LIST_LEN, &indexes[1], INDEXES_LEN - 1);
 	NRF_LOG_RAW_INFO("%s\r\n", (uint32_t)directory_list);
 	
 	/*
@@ -557,6 +554,15 @@ int main(void)
 		NRF_LOG_RAW_INFO("%d\r\n", indexes[i]);
 	}
 	*/
+	
+	nrf_gpio_cfg_output(BILLY_HEAD_PIN);
+	nrf_gpio_pin_clear(BILLY_HEAD_PIN);
+	
+	nrf_gpio_cfg_output(BILLY_TAIL_PIN);
+	nrf_gpio_pin_clear(BILLY_TAIL_PIN);
+	
+	nrf_gpio_cfg_output(BILLY_MOUTH_PIN);
+	nrf_gpio_pin_clear(BILLY_MOUTH_PIN);
 	
     buttons_leds_init(&erase_bonds);
     ble_stack_init();
@@ -576,14 +582,20 @@ int main(void)
     // Enter main loop.
     for (;;)
     {
-        power_manage();
+        //power_manage();
 		if(play_song_nr != 0)
 		{
 			uint8_t song_len = indexes[play_song_nr] - indexes[play_song_nr-1] - 1;
 			strncpy(song, &directory_list[indexes[play_song_nr-1]], song_len);
 			song[song_len] = '\0';
-			play_song(song);
-			NRF_LOG_INFO("start playing song: %s\r\n", (uint32_t)song);
+			if(play_song(song))
+			{
+				NRF_LOG_INFO("start playing song: %s\r\n", (uint32_t)song);
+			}
+			else
+			{
+				NRF_LOG_INFO("stopped playing song by user\r\n");
+			}
 			play_song_nr = 0;
 		}
 		stream_song();

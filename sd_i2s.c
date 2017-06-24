@@ -5,15 +5,26 @@
 #include "nrf_drv_i2s.h"
 #include "nrf_delay.h"
 #include "sd_i2s.h"
+#include "boards.h"
 
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
 #include "nrf_log_ctrl.h"
 
-#define SDC_SCK_PIN     25  ///< SDC serial clock (SCK) pin.
-#define SDC_MOSI_PIN    23  ///< SDC serial data in (DI) pin.
-#define SDC_MISO_PIN    24  ///< SDC serial data out (DO) pin.
-#define SDC_CS_PIN      22  ///< SDC chip select (CS) pin.
+#ifdef BOARD_PCA10040
+
+#define SDC_SCK_PIN     ARDUINO_13_PIN  ///< SDC serial clock (SCK) pin.
+#define SDC_MOSI_PIN    ARDUINO_11_PIN  ///< SDC serial data in (DI) pin.
+#define SDC_MISO_PIN    ARDUINO_12_PIN  ///< SDC serial data out (DO) pin.
+#define SDC_CS_PIN      ARDUINO_10_PIN  ///< SDC chip select (CS) pin.
+
+#define I2S_SCK			I2S_CONFIG_SCK_PIN
+#define I2S_LRCLK		I2S_CONFIG_LRCK_PIN
+#define I2S_SDOUT		I2S_CONFIG_SDOUT_PIN
+#define I2S_SDIN		255
+#define I2S_MCK			255
+
+#endif
 
 NRF_BLOCK_DEV_SDC_DEFINE(
         m_block_dev_sdc,
@@ -42,6 +53,7 @@ static FATFS fs;
 static FIL file;
 
 static uint32_t count;
+static bool close_file = false;
 
 void fatfs_init(void)
 {
@@ -81,7 +93,7 @@ void fatfs_init(void)
     return;
 }
 
-void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *indexes, uint8_t indexes_len)
+uint8_t fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *indexes, uint8_t indexes_len)
 {
 	FRESULT ff_result;
 	static DIR dir;
@@ -93,7 +105,7 @@ void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *index
     if (ff_result)
     {
         NRF_LOG_INFO("Directory listing failed!\r\n");
-        return;
+        return 0;
     }
     
     do
@@ -102,7 +114,7 @@ void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *index
         if (ff_result != FR_OK)
         {
             NRF_LOG_INFO("Directory read failed.");
-            return;
+            return 0;
         }
         
         if (fno.fname[0])
@@ -113,7 +125,7 @@ void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *index
 				if(str_len >= dir_list_len)
 				{
 					NRF_LOG_INFO("No more space in directory list string\r\n");
-					return;
+					return 0;
 				}
 				strcat(dir_list, fno.fname);
 				strcat(dir_list, "\n");
@@ -121,7 +133,7 @@ void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *index
 				if(index_count >= indexes_len)
 				{
 					NRF_LOG_INFO("No more space in indexes array\r\n");
-					return;
+					return 0;
 				}
 				
 				indexes[index_count] = str_len;
@@ -133,6 +145,7 @@ void fatfs_list_directory(char *dir_list, uint16_t dir_list_len, uint16_t *index
     }
     while (fno.fname[0]);
 	dir_list[strlen(dir_list)-1] = '\0';
+	return index_count;
 }
 
 bool fatfs_read()
@@ -142,11 +155,16 @@ bool fatfs_read()
 	
 	ff_result = f_read(&file, fatfs_buffer, sizeof(fatfs_buffer), (UINT*)&bytes_read);
 	
-	if((bytes_read < sizeof(fatfs_buffer)) || (ff_result != FR_OK))
+	if(ff_result != FR_OK)
 	{
 		NRF_LOG_INFO("Failed to read file\n");
 		return false;
-	}	
+	}
+	else if(bytes_read < sizeof(fatfs_buffer))
+	{
+		NRF_LOG_INFO("End of file\n");
+		return false;
+	}		
 	return true;
 }
 
@@ -176,9 +194,7 @@ static void data_handler(uint32_t const * p_data_received,
         //if data is not ready from sd card we need to stop the streaming
 		if(!fatfs_data_ready && (count > 2))
 		{
-			NRF_LOG_INFO("stopped i2s streaming, count: %u\n", count);
-			nrf_drv_i2s_stop();
-			playing = false;
+			close_file = true;
 			return;
 		}
 		
@@ -195,8 +211,13 @@ void i2s_init(void)
 	uint32_t err_code;
 	
 	 nrf_drv_i2s_config_t config = NRF_DRV_I2S_DEFAULT_CONFIG;
-    config.sdin_pin  = I2S_SDIN_PIN;
-    config.sdout_pin = I2S_SDOUT_PIN;
+    
+	config.sdin_pin  = I2S_SDIN;
+    config.sdout_pin = I2S_SDOUT;
+	config.sck_pin = I2S_SCK;
+	config.mck_pin = I2S_MCK;
+	config.lrck_pin = I2S_LRCLK;
+	
     config.mck_setup = NRF_I2S_MCK_32MDIV23;
     config.ratio     = NRF_I2S_RATIO_32X;
     config.channels  = NRF_I2S_CHANNELS_STEREO;
@@ -204,7 +225,7 @@ void i2s_init(void)
     APP_ERROR_CHECK(err_code);
 }
 
-void play_song(char *song)
+bool play_song(char *song)
 {
 	if(!playing)
 	{
@@ -221,7 +242,7 @@ void play_song(char *song)
 		if (ff_result != FR_OK)
 		{
 			NRF_LOG_INFO("Unable to open file %s.\r\n", (uint32_t)file_name);
-			return;
+			return playing;
 		}
 
 		//read header (44 bytes)
@@ -229,8 +250,8 @@ void play_song(char *song)
 		
 		if((bytes_read < sizeof(header)) || (ff_result != FR_OK))
 		{
-			NRF_LOG_INFO("Failed to read file\n");
-			return;
+			NRF_LOG_INFO("Failed to wav header\n");
+			return playing;
 		}
 
 		uint16_t channels = header[22] + (header[23]<<8);
@@ -249,11 +270,13 @@ void play_song(char *song)
 		APP_ERROR_CHECK(err_code);
 		
 		playing = true;
+		
 	}
 	else
 	{
 		stop_song();
 	}
+	return playing;
 }
 
 void stop_song(void)
@@ -264,20 +287,39 @@ void stop_song(void)
 		playing = false;
 		NRF_LOG_INFO("Playing stopped by user\r\n");
 		
-		//close file
-		(void) f_close(&file);
-		count = 0;
+		close_file = true;
 	}
 }
 
 void stream_song(void)
 {
+	FRESULT ff_result;
 	if(playing)
     {
 		if(i2s_data_sent)
 		{
-			fatfs_data_ready = fatfs_read();
 			i2s_data_sent = false;
+			fatfs_data_ready = fatfs_read();
 		}
     }
+	if(close_file)
+	{
+		
+		NRF_LOG_INFO("stopped i2s streaming, count: %u\n", count);
+		nrf_drv_i2s_stop();
+		playing = false;
+		
+		//close file
+		ff_result = f_close(&file);
+		if (ff_result != FR_OK)
+		{
+			NRF_LOG_INFO("Unable to close file.\r\n");
+			return;
+		}
+		
+			
+		NRF_LOG_INFO("File closed\r\n");
+		close_file = false;
+		count = 0;
+	}
 }
