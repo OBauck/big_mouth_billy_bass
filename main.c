@@ -37,6 +37,9 @@
 #include "app_util_platform.h"
 #include "bsp.h"
 #include "bsp_btn_ble.h"
+#include "motor.h"
+#include "nrf_delay.h"
+#include "advertiser_beacon.h"
 
 #define NRF_LOG_MODULE_NAME "APP"
 #include "nrf_log.h"
@@ -92,6 +95,10 @@ static uint16_t indexes[INDEXES_LEN];
 
 static uint8_t play_song_nr = 0;
 static uint8_t nr_of_songs = 0;
+
+#define BEACON_ADV_INTERVAL      760
+#define BEACON_URL               "\x03goo.gl/bx3ifs" /**< https://goo.gl/pIWdir short for https://developer.nordicsemi.com/thingy/52/ */
+#define BEACON_URL_LEN           14
 
 #ifdef BOARD_PCA10040
 
@@ -175,18 +182,23 @@ static void nus_data_handler(ble_nus_t * p_nus, uint8_t p_data, bool song)
 		{
 			case 0:
 				billy_head_toggle();
+				//billy_pwm_head_toggle();
 				break;
 			case 2:
 				billy_tail_out();
+				//billy_pwm_tail_out();
 				break;
 			case 3:
 				billy_tail_in();
+				//billy_pwm_tail_in();
 				break;
 			case 4:
 				billy_mouth_open();
+				//billy_pwm_mouth_open();
 				break;
 			case 5:
 				billy_mouth_close();
+				//billy_pwm_mouth_close();
 				break;
 		}
 	}
@@ -425,6 +437,10 @@ static void ble_evt_dispatch(ble_evt_t * p_ble_evt)
 
 }
 
+static void sys_evt_dispatch(uint32_t evt_id)
+{
+    app_beacon_on_sys_evt(evt_id);
+}
 
 /**@brief Function for the SoftDevice initialization.
  *
@@ -457,6 +473,9 @@ static void ble_stack_init(void)
 
     // Subscribe for BLE events.
     err_code = softdevice_ble_evt_handler_set(ble_evt_dispatch);
+    APP_ERROR_CHECK(err_code);
+	
+	err_code = softdevice_sys_evt_handler_set(sys_evt_dispatch);
     APP_ERROR_CHECK(err_code);
 }
 
@@ -551,7 +570,6 @@ static void buttons_leds_init(bool * p_erase_bonds)
     *p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
 }
 
-
 /**@brief Function for placing the application in low power state while waiting for events.
  */
 static void power_manage(void)
@@ -560,6 +578,42 @@ static void power_manage(void)
     APP_ERROR_CHECK(err_code);
 }
 
+/**@brief Function for handling a BeaconAdvertiser error.
+ *
+ * @param[in]   nrf_error   Error code containing information about what went wrong.
+ */
+static void beacon_advertiser_error_handler(uint32_t nrf_error)
+{
+    APP_ERROR_HANDLER(nrf_error);
+}
+
+/**@brief Function for initializing the beacon timeslot functionality.
+ */
+static uint32_t timeslot_init(void)
+{
+    uint32_t err_code;
+    static ble_beacon_init_t beacon_init;
+
+    beacon_init.adv_interval  =  BEACON_ADV_INTERVAL;
+    beacon_init.p_data         = (uint8_t *)BEACON_URL;
+    beacon_init.data_size      = BEACON_URL_LEN;
+    beacon_init.error_handler = beacon_advertiser_error_handler;
+
+    err_code = sd_ble_gap_addr_get(&beacon_init.beacon_addr);
+
+    if (err_code != NRF_SUCCESS)
+    {
+        return err_code;
+    }
+
+    // Increment device address by 2 for beacon advertising.
+    beacon_init.beacon_addr.addr[0] += 2;
+
+    app_beacon_init(&beacon_init);
+    app_beacon_start();
+
+    return NRF_SUCCESS;
+}
 
 /**@brief Application main function.
  */
@@ -571,6 +625,10 @@ int main(void)
 	
 	APP_ERROR_CHECK(NRF_LOG_INIT(NULL));
     NRF_LOG_INFO("Big Mouth Billy Bass\r\n\r\n");
+	
+	NRF_LOG_INFO("Reset reason: 0x%x\r\n", NRF_POWER->RESETREAS);
+	
+	NRF_POWER->RESETREAS = 0xFFFFFFFF;
 	
     // Initialize.
     APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
@@ -587,6 +645,14 @@ int main(void)
 	}
 	*/
 	
+	//motor_init(BILLY_TAIL_PIN, BILLY_HEAD_PIN, BILLY_MOUTH_PIN);
+	/*
+	motor_init(3, 4, 28);
+	
+	billy_pwm_tail_out();
+	
+	nrf_delay_ms(5000);
+	*/
 	billy_motion_init();
 	
     buttons_leds_init(&erase_bonds);
@@ -603,6 +669,8 @@ int main(void)
 	
     err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
     APP_ERROR_CHECK(err_code);
+
+	timeslot_init();
 
     // Enter main loop.
     for (;;)

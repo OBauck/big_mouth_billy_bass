@@ -328,12 +328,15 @@ void billy_motion_init(void)
 {
 	nrf_gpio_cfg_output(BILLY_HEAD_PIN);
 	nrf_gpio_pin_clear(BILLY_HEAD_PIN);
+	//nrf_gpio_pin_set(BILLY_HEAD_PIN);
 	
 	nrf_gpio_cfg_output(BILLY_TAIL_PIN);
 	nrf_gpio_pin_clear(BILLY_TAIL_PIN);
+	//nrf_gpio_pin_set(BILLY_TAIL_PIN);
 	
 	nrf_gpio_cfg_output(BILLY_MOUTH_PIN);
 	nrf_gpio_pin_clear(BILLY_MOUTH_PIN);
+	//nrf_gpio_pin_set(BILLY_MOUTH_PIN);
 }
 
 void billy_head_toggle(void)
